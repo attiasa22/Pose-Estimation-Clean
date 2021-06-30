@@ -13,7 +13,7 @@ parser.add_argument("--directory", default="/acer/Kinect_Data/Task by Task for d
 args = parser.parse_args()
 
 output_directory= args.directory+"_openpose_csv_output"
-os.mkdir(output_directory)#create output directory
+#os.mkdir(output_directory)#create output directory
 
 threshold = 0.2
 
@@ -30,37 +30,42 @@ POSE_PAIRS = [[1,2], [1,5], [2,3], [3,4], [5,6], [6,7],     #arm, shoulder line
             [11,24], [11,22], [22,23], [14,21],[14,19],[19,20],    #2 foot  
             [1,0], [0,15], [15,17], [0,16], [16,18], #face
             [2,17], [5,18]
-                ] 
+                ]
 
 
-                
+
 nPoints = 25
 alpha = 0.3
 
-directory = os.fsencode(args.directory)
+directory = args.directory
 out_dir=os.fsencode(output_directory)
 ##for all video files in the directory
 for file in os.listdir(directory):
     filename = os.fsdecode(file) #get the filename
-    if not filename.endswith(".mp4"): 
+    output_csv_name=filename+"_csv_openpose_file.csv" #create an output csv file 
+    outputPath=  output_directory +"/"+output_csv_name
+    outputPath="%s" % outputPath
+
+    if not filename.endswith(".mp4"):
         print(filename+"not a video")
+    elif os.path.isfile(outputPath):
+         print(output_csv_name+" already exists")
     else: #if it is a video file
 
         #start over with empty dataframe
         body_25_columns=[ "Nose","Neck", "RShoulder", "RElbow", "RWrist", "LShoulder", "LElbow",
                                                     "LWrist", "MidHip",  "RHip",  "RKnee", "RAnkle", "LHip",  "LKnee",
                                                     "LAnkle", "REye", "LEye", "REar", "LEar",  "LBigToe",  "LSmallToe",
-                                                    "LHeel", "RBigToe", "RSmallToe",  "RHeel","Background"]
+                                                    "LHeel", "RBigToe", "RSmallToe",  "RHeel"]
 
-        data = pd.DataFrame(data=None,columns=body_25_columns) 
-
-        output_csv_name=filename+"_csv_openpose_file.csv" #create an output csv file 
-        video_path=str(directory+ filename)
+        data = pd.DataFrame(columns=body_25_columns)
+        video_path=video_path=directory+"/"+filename
+        video_path="%s" % video_path
         print(video_path)
         cap = cv2.VideoCapture(video_path)
         ret, img = cap.read()
         if ret == False:
-            print('Video File Read Error')    
+            print('Video File Read Error')
             sys.exit(0)
         frameHeight, frameWidth, c = img.shape
 
@@ -82,22 +87,26 @@ for file in os.listdir(directory):
             ret, img = cap.read()
             if ret == False:
                 break
-            frame += 1    
+            frame += 1
             datum = op.Datum()
             datum.cvInputData = img
             opWrapper.emplaceAndPop(op.VectorDatum([datum]))
-            human_count = len(datum.poseKeypoints)
-            print("Humans: "+ str(len(datum.poseKeypoints)))
-            if human_count==1:
-                print ("Body keypoints: \n" + str(datum.poseKeypoints))
-                df2 = pd.DataFrame([[str(frame)], str(datum.poseKeypoints)], columns=body_25_columns)
-                data.append(df2)
-
-            f_elapsed = time.time() - f_st 
+            try:
+                human_count = len(datum.poseKeypoints)
+                print("Humans: "+ str(len(datum.poseKeypoints)))
+                if human_count==1:
+                    #print ("Body keypoints: \n" + str(datum.poseKeypoints[0]))
+                    df2 = pd.DataFrame([datum.poseKeypoints[0].tolist() ], columns=body_25_columns)
+                    data= data.append(df2,ignore_index=True)
+                    #print(str(data))
+            except TypeError:
+                print("No Humans")
+            except:
+                print("Something else went wrong")
+            f_elapsed = time.time() - f_st
             t_elapsed += f_elapsed
             print('Frame[%d] processed time[%4.2f]'%(frame, f_elapsed))
-
-        data.to_csv(output_csv_name, index = False)
+        data.to_csv(outputPath, index = False)
 
         print('Total processed time[%4.2f]'%(t_elapsed))
         print('avg frame processing rate :%4.2f'%(t_elapsed / frame))
