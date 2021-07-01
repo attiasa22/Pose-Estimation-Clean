@@ -2,13 +2,10 @@
 import json
 import os
 import argparse
-import numpy as np
 import pandas as pd
-import sys
-#import trt_pose
 import trt_pose.coco
 import trt_pose.models
-import torch
+import torch 
 import torch2trt
 from torch2trt import TRTModule
 import time
@@ -17,48 +14,48 @@ import torchvision.transforms as transforms
 import PIL.Image
 from trt_pose.parse_objects import ParseObjects
 
+
 parser = argparse.ArgumentParser(description='Run keypoint detection')
 parser.add_argument("--device", default="gpu", help="Device to inference on")
 parser.add_argument("--directory", default="/acer/Kinect_Data/Task by Task for data analysing(balance study)", help="Input Directory with files")
 args = parser.parse_args()
 
-output_directory= args.directory+"_trt_pose_csv_output"
 directory = args.directory
-out_dir=os.fsencode(output_directory)
+#Create the output directory name
+output_directory= args.directory+"_trt_pose_csv_output"
 
-
-
-
+#Load the points needed from the json file
 with open('human_pose.json', 'r') as f:
     human_pose = json.load(f)
 
+#Load the coco model
 topology = trt_pose.coco.coco_category_to_topology(human_pose)
-print("1")
+
 num_parts = len(human_pose['keypoints'])
 num_links = len(human_pose['skeleton'])
 
 model = trt_pose.models.resnet18_baseline_att(num_parts, 2 * num_links).cuda().eval()
-print("2")
 MODEL_WEIGHTS = 'resnet18_baseline_att_224x224_A_epoch_249.pth'
 model.load_state_dict(torch.load(MODEL_WEIGHTS))
-
+#Width and height of images model was trained on
 WIDTH = 224
 HEIGHT = 224
-print("3")
+
 data = torch.zeros((1, 3, HEIGHT, WIDTH)).cuda()
 
+#load torch model, takes some time to finish
+print("Beginning to load model")
 model_trt = torch2trt.torch2trt(model, [data], fp16_mode=True, max_workspace_size=1<<25)
-
 OPTIMIZED_MODEL='resnet18_baseline_att_224x224_A_epoch_249_trt.pth'
-print("4")
+
 torch.save(model_trt.state_dict(), OPTIMIZED_MODEL)
 
 model_trt = TRTModule()
 model_trt.load_state_dict(torch.load(OPTIMIZED_MODEL))
-print("5")
+print("Finished")
 
 
-
+#Lines 59-65 find the theoretical FPS your machine can run the model at. XAVIER runs at around 250 FPS
 t0 = time.time()
 torch.cuda.current_stream().synchronize()
 for i in range(50):
@@ -66,7 +63,6 @@ for i in range(50):
 torch.cuda.current_stream().synchronize()
 t1 = time.time()
 print(50.0 / (t1 - t0))
-
 
 mean = torch.Tensor([0.485, 0.456, 0.406]).cuda()
 std = torch.Tensor([0.229, 0.224, 0.225]).cuda()
@@ -99,12 +95,13 @@ def preprocess(image):
     image.sub_(mean[:, None, None]).div_(std[:, None, None])
     return image[None, ...]
 
-parse_objects = ParseObjects(topology)
+
 def execute(resizedImage,img):
     frameData=[]
     X_compress = 640.0 / WIDTH * 1.0
     Y_compress = 480.0 / HEIGHT * 1.0
     image = img
+    parse_objects = ParseObjects(topology)
     data = preprocess(image)
     cmap, paf = model_trt(data)
     cmap, paf = cmap.detach().cpu(), paf.detach().cpu()
@@ -119,27 +116,31 @@ def execute(resizedImage,img):
                 frameData.append([x,y])
         return frameData
 
+#MISSING execute_2 function
+
 for file in os.listdir(directory):
     filename = os.fsdecode(file) #get the filename
     output_csv_name=filename+"_csv_trt_pose_file.csv" #create an output csv file 
-    outputPath=  output_directory +"/"+output_csv_name
+    outputPath=  output_directory +"/"+output_csv_name #set the full path
     outputPath="%s" % outputPath
 
-    if not filename.endswith(".mp4"):
+    if not filename.endswith(".mp4"): #guard clauses, this can run on any video file type but here set to mp4
         print(filename+"not a video")
-    elif os.path.isfile(outputPath):
+    elif os.path.isfile(outputPath): #if the program has been run on the same Directory, this avoids rerunning the model
          print(output_csv_name+" already exists")
-    else: #if it is a video file
-
+    else: #if it is a video file we haven't seen before:
+        #start an empty dataframe.
         data = pd.DataFrame(columns=human_pose['keypoints'])
+        #get the video path
         video_path=video_path=directory+"/"+filename
         video_path="%s" % video_path
         print(video_path)
+        #cv2 is helpful to get the date from the video for the model
         cap = cv2.VideoCapture(video_path)
         ret, img = cap.read()
         if ret == False:
             print('Video File Read Error')
-            sys.exit(0)
+        #variables help keep track of framecount
         frame=0
         t_elapsed = 0.0
         while cap.isOpened():
@@ -148,16 +149,17 @@ for file in os.listdir(directory):
             ret, img = cap.read()
             if ret == False:
                 break
-
+            
             resizedImage=cv2.resize(img, dsize=(WIDTH, HEIGHT), interpolation=cv2.INTER_AREA)
-
+            #get the returned points
             frameData=execute(resizedImage,img)
             print(frameData)
             f_elapsed = time.time() - f_st
             t_elapsed += f_elapsed
             print('Frame[%d] processed time[%4.2f]'%(frame, f_elapsed))
+            #convert array to a dataframe
             df2 = pd.DataFrame([frameData[0]], columns=human_pose['keypoints'])
             data= data.append(df2,ignore_index=True)
-
+        #once all the frames in a file have been handles, convert the dataframe to a csv, at the corresponding filepath
         data.to_csv(outputPath, index = False)
         cap.release()
