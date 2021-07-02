@@ -161,7 +161,6 @@ def preprocess(image):
     image = transforms.functional.to_tensor(image).to(device)
     image.sub_(mean[:, None, None]).div_(std[:, None, None])
     return image[None, ...]
--- INSERT --                   
 
 # UNUSED
 #def execute(resizedImage,img):
@@ -230,7 +229,7 @@ for file in os.listdir(directory):
         t_elapsed = 0.0
 
         fourcc = cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')
-        out_video = cv2.VideoWriter('/trt_video/TRT_%s.mp4'%filename, fourcc, cap.get(cv2.CAP_PROP_FPS), (W, H))
+        out_video = cv2.VideoWriter('/trt_video/TRT_%s'%filename, fourcc, cap.get(cv2.CAP_PROP_FPS), (W, H))
         print('Desktop/trt_videos/TRT_%s'%(filename))
         draw_objects = DrawObjects(topology)
         while cap.isOpened():
