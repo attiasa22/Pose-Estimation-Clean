@@ -95,71 +95,89 @@ def preprocess(image):
     image.sub_(mean[:, None, None]).div_(std[:, None, None])
     return image[None, ...]
 
+# UNUSED
+#def execute(resizedImage,img):
+#    frameData=[]
+#    X_compress = 640.0 / WIDTH * 1.0
+#    Y_compress = 480.0 / HEIGHT * 1.0
+#    image = img
+#    parse_objects = ParseObjects(topology)
+#    data = preprocess(image)
+#    cmap, paf = model_trt(data)
+#    cmap, paf = cmap.detach().cpu(), paf.detach().cpu()
+#    counts, objects, peaks = parse_objects(cmap, paf)#, cmap_threshold=0.15, link_threshold=0.15)
+#    for i in range(counts[0]):
+#        print(i+" humans")
+#        keypoints = get_keypoint(object, i, peaks)
+#        for j in range(len(keypoints)):
+#            if keypoints[j][1]:
+#                x = round(keypoints[j][2] * WIDTH * X_compress)
+#                y = round(keypoints[j][1] * HEIGHT * Y_compress)
+#                frameData.append([x,y])
+#        return frameData
 
-def execute(resizedImage,img):
-    frameData=[]
-    X_compress = 640.0 / WIDTH * 1.0
-    Y_compress = 480.0 / HEIGHT * 1.0
-    image = img
-    parse_objects = ParseObjects(topology)
-    data = preprocess(image)
+def execute_2(img, org, count):
+    start = time.time()
+    data = preprocess(img)
     cmap, paf = model_trt(data)
     cmap, paf = cmap.detach().cpu(), paf.detach().cpu()
+    end = time.time()
     counts, objects, peaks = parse_objects(cmap, paf)#, cmap_threshold=0.15, link_threshold=0.15)
     for i in range(counts[0]):
-        print(i+" humans")
-        keypoints = get_keypoint(object, i, peaks)
-        for j in range(len(keypoints)):
-            if keypoints[j][1]:
-                x = round(keypoints[j][2] * WIDTH * X_compress)
-                y = round(keypoints[j][1] * HEIGHT * Y_compress)
-                frameData.append([x,y])
-        return frameData
-
-#MISSING execute_2 function
+        #print("Human index:%d "%( i ))
+        kpoint = get_keypoint(objects, i, peaks)
+  #      print(kpoint)
+    netfps = 1 / (end - start)
+#    print("Human count:%d len:%d "%(counts[0], len(counts)))
+    print('===== Frmae[%d] Net FPS :%f ====='%(count, netfps))
+    return kpoint
 
 for file in os.listdir(directory):
     filename = os.fsdecode(file) #get the filename
     output_csv_name=filename+"_csv_trt_pose_file.csv" #create an output csv file 
-    outputPath=  output_directory +"/"+output_csv_name #set the full path
+    outputPath=  output_directory +"/"+output_csv_name
     outputPath="%s" % outputPath
 
-    if not filename.endswith(".mp4"): #guard clauses, this can run on any video file type but here set to mp4
+    if not filename.endswith(".mp4"):
         print(filename+"not a video")
-    elif os.path.isfile(outputPath): #if the program has been run on the same Directory, this avoids rerunning the model
+    elif os.path.isfile(outputPath):
          print(output_csv_name+" already exists")
-    else: #if it is a video file we haven't seen before:
-        #start an empty dataframe.
+    else: #if it is a video file
+
         data = pd.DataFrame(columns=human_pose['keypoints'])
-        #get the video path
         video_path=video_path=directory+"/"+filename
         video_path="%s" % video_path
-        print(video_path)
-        #cv2 is helpful to get the date from the video for the model
-        cap = cv2.VideoCapture(video_path)
-        ret, img = cap.read()
-        if ret == False:
-            print('Video File Read Error')
-        #variables help keep track of framecount
-        frame=0
-        t_elapsed = 0.0
-        while cap.isOpened():
-            f_st = time.time()
-            frame+=1
+        try:
+            print(video_path)
+            cap = cv2.VideoCapture(video_path)
             ret, img = cap.read()
             if ret == False:
-                break
-            
-            resizedImage=cv2.resize(img, dsize=(WIDTH, HEIGHT), interpolation=cv2.INTER_AREA)
-            #get the returned points
-            frameData=execute(resizedImage,img)
-            print(frameData)
-            f_elapsed = time.time() - f_st
-            t_elapsed += f_elapsed
-            print('Frame[%d] processed time[%4.2f]'%(frame, f_elapsed))
-            #convert array to a dataframe
-            df2 = pd.DataFrame([frameData[0]], columns=human_pose['keypoints'])
-            data= data.append(df2,ignore_index=True)
-        #once all the frames in a file have been handles, convert the dataframe to a csv, at the corresponding filepath
-        data.to_csv(outputPath, index = False)
-        cap.release()
+                print('Video File Read Error')
+                sys.exit(0)
+            frame=0
+            t_elapsed = 0.0
+            while cap.isOpened():
+                f_st = time.time()
+                frame+=1
+                ret, img = cap.read()
+                if ret == False:
+                    break
+
+                resizedImage=cv2.resize(img, dsize=(WIDTH, HEIGHT), interpolation=cv2.INTER_AREA)
+                try:
+                    frameData=execute_2(resizedImage,img,frame)
+                    print("Clean DATA")
+                    #print(frameData) 
+                    #print("END Clean DATA")
+                    f_elapsed = time.time() - f_st
+                    t_elapsed += f_elapsed
+                    print('Frame[%d] processed time[%4.2f]'%(frame, f_elapsed))
+                    df2 = pd.DataFrame([frameData], columns=human_pose['keypoints'])
+                    data= data.append(df2,ignore_index=True)
+                    #  print(data)
+                except:
+                    print("Frame couldn't be read")
+            data.to_csv(outputPath, index = False)
+            cap.release()
+        except:
+             print(video_path+"is corrupted")
