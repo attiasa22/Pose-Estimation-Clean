@@ -207,12 +207,13 @@ for file in os.listdir(directory):
     output_csv_name=filename+"_csv_trt_pose_file.csv" #create an output csv file 
     outputPath=  output_directory +"/"+output_csv_name
     outputPath="%s" % outputPath
-
+    out_video_filename= 'TRT_%s.mp4'%filename
     if not filename.endswith(".mp4"):
-        print(filename+"not a video")
-    #elif os.path.isfile(outputPath):
-     #    print(output_csv_name+" already exists")
+        print(filename+" not a video")
+    elif os.path.isfile("trt_videos/%s"%out_video_filename):
+        print(output_csv_name+" already exists")
     else: #if it is a video file
+
 
       #  data = pd.DataFrame(columns=human_pose['keypoints'])
         video_path=video_path=directory+"/"+filename
@@ -229,8 +230,9 @@ for file in os.listdir(directory):
         t_elapsed = 0.0
 
         fourcc = cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')
-        out_video = cv2.VideoWriter('/trt_video/TRT_%s'%filename, fourcc, cap.get(cv2.CAP_PROP_FPS), (W, H))
-        print('Desktop/trt_videos/TRT_%s'%(filename))
+        out_video = cv2.VideoWriter(out_video_filename, fourcc, cap.get(cv2.CAP_PROP_FPS), (W, H))
+        os.rename(out_video_filename,"trt_video/%s"%out_video_filename)
+        print('trt_videos/TRT_%s'%(filename))
         draw_objects = DrawObjects(topology)
         while cap.isOpened():
             f_st = time.time()
