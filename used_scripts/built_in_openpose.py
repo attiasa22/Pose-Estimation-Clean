@@ -47,7 +47,7 @@ for file in os.listdir(directory):
     outputPath="%s" % outputPath
 
     if not filename.endswith(".mp4"):
-        print(fi    lename+"not a video")
+        print(filename+"not a video")
     elif os.path.isfile(outputPath):
          print(output_csv_name+" already exists")
     else: #if it is a video file
