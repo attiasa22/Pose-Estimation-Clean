@@ -231,8 +231,8 @@ for file in os.listdir(directory):
 
         fourcc = cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')
         out_video = cv2.VideoWriter(out_video_filename, fourcc, cap.get(cv2.CAP_PROP_FPS), (W, H))
-        os.rename(out_video_filename,"trt_video/%s"%out_video_filename)
-        print('trt_videos/TRT_%s'%(filename))
+        os.rename(out_video_filename,"/acer/trt_videos/%s"%out_video_filename)
+        print('/acer/trt_videos/TRT_%s'%(filename))
         draw_objects = DrawObjects(topology)
         while cap.isOpened():
             f_st = time.time()
