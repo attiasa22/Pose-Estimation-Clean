@@ -12,7 +12,7 @@ from torch2trt import TRTModule
 import time
 import cv2
 import torchvision.transforms as transforms
-import PIL.Image, PIL.ImageDraw
+import PIL.Image, PIL.ImageDraw, PIL.ImageFont
 from trt_pose.parse_objects import ParseObjects
 from trt_pose.draw_objects import DrawObjects
 
@@ -133,6 +133,12 @@ def draw_keypoints(img, key):
     #draw nose -> neck (0-> 17)
     if all(key[0][1:]) and all(key[17]):
         draw.line([ round(key[0][2] * w), round(key[0][1] * h), round(key[17][2] * w), round(key[17][1] * h)],width = thickness, fill=(255,255,0))
+    
+    fnt = PIL.ImageFont.truetype("/usr/share/fonts/truetype/freefont/FreeMonoBold.ttf",40)
+    
+    for i in range(0,18):
+        draw.text((key[i][2], key[i][1]),"%d" %i ,font=fnt, fill=(255,255,255), align ="left") 
+    
     return img
 
 def get_keypoint(humans, hnum, peaks):
